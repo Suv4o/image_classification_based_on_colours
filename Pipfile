@@ -8,6 +8,8 @@ scikit-learn = "~=1.3.0"
 opencv-python = "~=4.8.0.76"
 numpy = "~=1.25.2"
 pillow = "~=10.0.0"
+langchain = {version = "*", extras = ["llms"]}
+python-dotenv = "~=1.0.0"
 
 [dev-packages]
 
