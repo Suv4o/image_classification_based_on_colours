@@ -1,13 +1,12 @@
 import os
+import time
 
-from langchain.chains.openai_functions import (
-    create_openai_fn_chain,
-    create_structured_output_chain,
-)
+from langchain.chains.openai_functions import create_structured_output_chain
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
-from langchain.schema import HumanMessage, SystemMessage
+from langchain.prompts import ChatPromptTemplate
 from sklearn.cluster import KMeans
+from sentence_transformers import SentenceTransformer
+import numpy as np
 from PIL import Image
 from dotenv import load_dotenv
 from collections import Counter
@@ -15,6 +14,7 @@ import numpy as np
 import cv2
 
 load_dotenv()
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
@@ -25,8 +25,11 @@ def get_image(pil_image):
     return image
 
 
+n_clusters_colours = 10
+
+
 def get_labels(rimg):
-    clf = KMeans(n_clusters=5, n_init=10)
+    clf = KMeans(n_clusters=n_clusters_colours, n_init=10)
     labels = clf.fit_predict(rimg)
     return labels, clf
 
@@ -47,7 +50,7 @@ def get_colours(pimg):
 
 
 images = os.listdir("images")
-llm = ChatOpenAI(model="gpt-4", temperature=0, openai_api_key=OPENAI_API_KEY)
+llm = ChatOpenAI(model="gpt-3.5-turbo-0613", temperature=0, openai_api_key=OPENAI_API_KEY)
 prompt = ChatPromptTemplate.from_messages(
     [
         (
@@ -73,9 +76,36 @@ json_schema = {
 
 chain = create_structured_output_chain(json_schema, llm, prompt)
 
+image_colour_groups = []
+
 for image in images:
     pil_image = Image.open("images/" + image)
     hex_colours = get_colours(pil_image)
+    image_colour_names = []
     for hex in hex_colours:
-        colour_name = chain.run(f"Hex Colour: {hex}")
-        print(colour_name)
+        time.sleep(1)  # sleep for one second to avoid openai api rate limit
+        colour = chain.run(f"Hex Colour: {hex}")
+        image_colour_names.append(colour.get("colour_name"))
+        image_colour_names.sort()
+
+    image_colour_names_string = ", ".join(image_colour_names)
+    image_colour_groups.append({"image": image, "colours": image_colour_names_string})
+
+color_names = list(map(lambda x: x["colours"], image_colour_groups))
+
+corpus_embeddings = embedder.encode(color_names)
+
+num_clusters = 5
+clustering_model = KMeans(n_clusters=num_clusters, n_init=10)
+clustering_model.fit(corpus_embeddings)
+cluster_assignment = clustering_model.labels_
+
+clustered_sentences = [[] for i in range(num_clusters)]
+for sentence_id, cluster_id in enumerate(cluster_assignment):
+    clustered_sentences[cluster_id].append(color_names[sentence_id])
+
+for i, cluster in enumerate(clustered_sentences):
+    print("Cluster ", i + 1)
+    for items in cluster:
+        image_name = next((item["image"] for item in image_colour_groups if items in item["colours"]), None)
+        print(f"Image: {image_name} Colour: {items}")

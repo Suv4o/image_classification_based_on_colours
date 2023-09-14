@@ -10,6 +10,7 @@ numpy = "~=1.25.2"
 pillow = "~=10.0.0"
 langchain = {version = "*", extras = ["llms"]}
 python-dotenv = "~=1.0.0"
+sentence-transformers = "~=2.2.2"
 
 [dev-packages]
 
