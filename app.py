@@ -13,6 +13,8 @@ from collections import Counter
 import numpy as np
 import cv2
 
+start_time = time.time()
+
 load_dotenv()
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -25,7 +27,7 @@ def get_image(pil_image):
     return image
 
 
-n_clusters_colours = 10
+n_clusters_colours = 5
 
 
 def get_labels(rimg):
@@ -82,11 +84,14 @@ for image in images:
     pil_image = Image.open("images/" + image)
     hex_colours = get_colours(pil_image)
     image_colour_names = []
+    print(f"Image: {image}")
     for hex in hex_colours:
         time.sleep(1)  # sleep for one second to avoid openai api rate limit
         colour = chain.run(f"Hex Colour: {hex}")
+        print(f"Hex Colour: {hex} Colour Name: {colour.get('colour_name')}")
         image_colour_names.append(colour.get("colour_name"))
         image_colour_names.sort()
+    print("")
 
     image_colour_names_string = ", ".join(image_colour_names)
     image_colour_groups.append({"image": image, "colours": image_colour_names_string})
@@ -95,7 +100,7 @@ color_names = list(map(lambda x: x["colours"], image_colour_groups))
 
 corpus_embeddings = embedder.encode(color_names)
 
-num_clusters = 5
+num_clusters = 3
 clustering_model = KMeans(n_clusters=num_clusters, n_init=10)
 clustering_model.fit(corpus_embeddings)
 cluster_assignment = clustering_model.labels_
@@ -109,3 +114,7 @@ for i, cluster in enumerate(clustered_sentences):
     for items in cluster:
         image_name = next((item["image"] for item in image_colour_groups if items in item["colours"]), None)
         print(f"Image: {image_name} Colour: {items}")
+
+end_time = time.time()
+total_time = end_time - start_time
+print(f"Total time taken: {total_time:.2f} seconds")
